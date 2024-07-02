@@ -50,6 +50,7 @@ import {
 } from './types/types';
 import { bs58 } from '@coral-xyz/anchor/dist/cjs/utils/bytes';
 import { UserMapConfig } from '@drift-labs/sdk/lib/userMap/userMapConfig';
+import {unstakeSharesToAmount as depositSharesToVaultAmount} from "@drift-labs/sdk/lib/math/insurance";
 
 export type TxParams = {
 	cuLimit?: number;
@@ -242,6 +243,22 @@ export class VaultClient {
 		const unrealizedPnl = user.getUnrealizedPNL(true, undefined, undefined);
 
 		return netSpotValue.add(unrealizedPnl);
+	}
+	
+	public async calculateVaultProtocolEquity(params: {
+		vault: PublicKey
+	}): Promise<BN> {
+		const vaultAccount = await this.program.account.vault.fetch(params.vault);
+		const vaultTotalEquity = await this.calculateVaultEquity({
+			vault: vaultAccount
+		});
+		const vaultProtocol = this.getVaultProtocolAddress(params.vault);
+		const vpAccount = await this.program.account.vaultProtocol.fetch(vaultProtocol);
+		return depositSharesToVaultAmount(
+			vpAccount.protocolProfitAndFeeShares,
+			vaultAccount.totalShares,
+			vaultTotalEquity
+		);
 	}
 
 	/**
